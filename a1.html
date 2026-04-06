@@ -1,0 +1,1076 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="description" content="aire — AI-powered resume optimization. Upload your resume and a job description to get an ATS-optimized version instantly."/>
+  <meta name="robots" content="noindex, nofollow"/>
+  <meta name="theme-color" content="#0071C5"/>
+  <title>aire — AI-powered resume optimization</title>
+
+  <!-- Fonts: Raleway (headings) + Open Sans (body) — Blau Design System -->
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Raleway:wght@400;600;700;800&family=Open+Sans:wght@300;400;600;700&display=swap" rel="stylesheet"/>
+
+  <!-- jsPDF for client-side PDF generation -->
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    /* ================================================================
+       RESET & DESIGN TOKENS (Blau Design System)
+       ================================================================ */
+    *,*::before,*::after { box-sizing:border-box; margin:0; padding:0 }
+    :root {
+      --blue: #0071C5;
+      --blue-hover: #005da0;
+      --text: #1a1a1a;
+      --mid: #555;
+      --light: #999;
+      --border: #e0e0e0;
+      --bg-subtle: #f8f8f7;
+      --tag-bg: #f0f0ef;
+      --bg: #fff;
+      --font-title: 'Raleway', sans-serif;
+      --font: 'Open Sans', sans-serif;
+    }
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ================================================================
+       LOGIN SCREEN
+       ================================================================ */
+    #login-screen {
+      position: fixed; inset: 0; background: var(--bg);
+      display: flex; align-items: center; justify-content: center; z-index: 100;
+    }
+    #login-screen.hidden { display: none }
+    .login-card {
+      width: 100%; max-width: 360px; padding: 2.5rem 2rem;
+      border-radius: 16px; border: 1px solid var(--border);
+    }
+    .brand-dot { width: 36px; height: 36px; background: var(--blue); border-radius: 50%; margin-bottom: 1.25rem }
+    .login-card h1 { font-family: var(--font-title); font-size: 1.5rem; font-weight: 700; margin-bottom: .25rem }
+    .login-card p { font-size: .82rem; color: var(--light); margin-bottom: 1.5rem }
+    .field-label {
+      font-size: .68rem; font-weight: 600; text-transform: uppercase;
+      letter-spacing: .12em; color: var(--light); display: block; margin-bottom: 5px;
+    }
+    .login-card input[type="password"] {
+      width: 100%; padding: 11px 14px; font-family: var(--font); font-size: .88rem;
+      border: 1.5px solid var(--border); border-radius: 10px; outline: none;
+      margin-bottom: .5rem; transition: border-color .2s;
+    }
+    .login-card input:focus { border-color: var(--blue) }
+    .login-error { font-size: .75rem; color: #c0392b; min-height: 1.2em; margin-bottom: .6rem }
+    .login-footer, .app-footer {
+      margin-top: 1.5rem; text-align: center; font-size: .7rem;
+      color: var(--light); letter-spacing: .02em;
+    }
+    .footer-link {
+      color: var(--light); text-decoration: none; transition: color .2s;
+    }
+    .footer-link:hover { color: var(--blue) }
+
+    /* ================================================================
+       BUTTONS (Blau pill pattern)
+       ================================================================ */
+    .btn-blue {
+      display: inline-block; padding: 11px 28px; background: var(--blue); color: #fff;
+      font-family: var(--font); font-size: .82rem; font-weight: 600; border: none;
+      border-radius: 100px; cursor: pointer; transition: background .2s; text-align: center;
+    }
+    .btn-blue:hover { background: var(--blue-hover) }
+    .btn-blue--block { display: block; width: 100% }
+    .btn-blue:disabled { opacity: .55; cursor: not-allowed }
+    .btn-outline {
+      padding: 9px 20px; border: 1.5px solid var(--border); border-radius: 100px;
+      font-family: var(--font); font-size: .82rem; font-weight: 600; color: var(--mid);
+      background: var(--bg); cursor: pointer; transition: border-color .2s, color .2s;
+    }
+    .btn-outline:hover { border-color: var(--blue); color: var(--blue) }
+    .btn-success { border-color: #1a7a4a !important; color: #1a7a4a !important }
+
+    /* ================================================================
+       APP LAYOUT — wider two-column on desktop, stacked on mobile
+       ================================================================ */
+    #app { display: none }
+    #app.visible { display: flex; flex-direction: column; min-height: 100vh }
+
+    /* Top bar */
+    .top-header {
+      display: flex; align-items: center; gap: 10px; padding: .75rem 2rem;
+      border-bottom: 1px solid var(--border); position: sticky; top: 0;
+      background: var(--bg); z-index: 50; flex-shrink: 0;
+    }
+    .top-header .dot { width: 9px; height: 9px; background: var(--blue); border-radius: 50% }
+    .top-header-name { font-family: var(--font-title); font-size: .92rem; font-weight: 700 }
+    .top-header-right { margin-left: auto; font-size: .72rem; color: var(--light) }
+
+    /* Main content area */
+    .app-main {
+      flex: 1; max-width: 1100px; width: 100%; margin: 0 auto;
+      padding: 1.25rem 2rem 1.5rem;
+    }
+
+    /* Hero */
+    .hero {
+      text-align: center; padding: 2.5rem 0 2.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .hero-subtitle {
+      font-family: var(--font-title); font-size: 1.65rem; font-weight: 700;
+      line-height: 1.25; margin-bottom: .75rem; color: var(--text);
+    }
+    .hero-subtitle .hl { color: var(--blue) }
+    .hero-desc {
+      font-size: .8rem; color: var(--mid); line-height: 1.7;
+      max-width: 520px; margin: 0 auto;
+    }
+
+    /* Two-column grid */
+    .layout { display: flex; flex-direction: column; gap: .75rem; max-width: 720px; margin: 0 auto }
+    .col { display: flex; flex-direction: column; gap: .75rem }
+
+    /* Panels */
+    .panel {
+      background: var(--bg); border-radius: 14px; border: 1px solid var(--border); overflow: hidden;
+    }
+    .panel-header {
+      padding: .85rem 1.1rem; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .panel-num {
+      font-size: .6rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .1em; color: var(--blue); background: rgba(0,113,197,.08);
+      padding: 2px 7px; border-radius: 4px;
+    }
+    .panel-title { font-family: var(--font-title); font-size: .84rem; font-weight: 600 }
+    .panel-body { padding: 1rem; display: flex; flex-direction: column; gap: 10px }
+    .clear-btn {
+      margin-left: auto; height: 26px; border: none; background: none;
+      cursor: pointer; color: var(--light); display: flex; align-items: center;
+      border-radius: 6px; transition: color .2s, background .2s; padding: 0 5px; gap: 3px;
+      font-family: var(--font); font-size: .65rem;
+    }
+    .clear-btn:hover { color: var(--blue); background: rgba(0,113,197,.06) }
+    .clear-btn svg { flex-shrink: 0 }
+
+    /* Form elements */
+    .upload-zone {
+      border: 1.5px dashed var(--border); border-radius: 10px; padding: 2rem 1rem;
+      text-align: center; cursor: pointer; background: var(--bg-subtle);
+      transition: border-color .2s, background .2s;
+    }
+    .upload-zone:hover { border-color: var(--blue); background: rgba(0,113,197,.03) }
+    .upload-zone p { font-size: .8rem; color: var(--mid); margin-bottom: 2px }
+    .upload-zone span { font-size: .68rem; color: var(--light) }
+    textarea, select {
+      width: 100%; font-family: var(--font); font-size: .82rem; color: var(--text);
+      background: var(--bg); border: 1.5px solid var(--border); border-radius: 10px;
+      padding: 9px 12px; outline: none; resize: vertical; transition: border-color .2s;
+    }
+    textarea:focus, select:focus { border-color: var(--blue) }
+    select { resize: none; cursor: pointer }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 8px }
+    .eyebrow {
+      font-size: .68rem; font-weight: 400; text-transform: uppercase;
+      letter-spacing: .18em; color: var(--light); margin-bottom: .35rem;
+    }
+
+    /* Validation */
+    .input-error { border-color: #c0392b !important; box-shadow: 0 0 0 2px rgba(192,57,43,.1) }
+    select.input-error { border-color: #c0392b !important }
+    .input-error-msg { font-size: .7rem; color: #c0392b; margin-top: 3px }
+    .error-msg { font-size: .75rem; color: #c0392b; min-height: 1em; margin-top: .25rem }
+
+    /* Resume mode toggle */
+    .mode-toggle { display: flex; gap: 0; border: 1.5px solid var(--border); border-radius: 8px; overflow: hidden }
+    .mode-toggle button {
+      flex: 1; padding: 7px 10px; border: none; background: var(--bg);
+      font-family: var(--font); font-size: .72rem; font-weight: 600;
+      color: var(--light); cursor: pointer; transition: background .15s, color .15s;
+    }
+    .mode-toggle button.active { background: var(--tag-bg); color: var(--text); font-weight: 700 }
+    .mode-toggle button:not(.active):hover { background: var(--bg-subtle); color: var(--mid) }
+    .mode-toggle button.active:hover { background: var(--border) }
+
+
+    /* Action row */
+    .action-row { display: flex; gap: .5rem; margin-top: .25rem }
+    .action-row > * { flex: 1 }
+
+    /* Loading */
+    .loading-row { display: flex; align-items: center; gap: 10px; padding: 1.5rem 0; justify-content: center }
+    .loading-row p { font-size: .82rem; color: var(--mid) }
+    .spinner { animation: spin .8s linear infinite }
+    @keyframes spin { to { transform: rotate(360deg) } }
+
+    /* ================================================================
+       OUTPUT MODAL
+       ================================================================ */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 200;
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; pointer-events: none; transition: opacity .25s;
+    }
+    .modal-overlay.open { opacity: 1; pointer-events: auto }
+    .modal-box {
+      width: 95%; max-width: 820px; max-height: 92vh; background: var(--bg);
+      border-radius: 16px; overflow: hidden; display: flex; flex-direction: column;
+      transform: translateY(20px); transition: transform .25s;
+    }
+    .modal-overlay.open .modal-box { transform: translateY(0) }
+    .modal-header {
+      padding: 1rem 1.25rem; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+    }
+    .modal-header .panel-title { flex: 1 }
+    .modal-close {
+      width: 32px; height: 32px; border: none; background: var(--bg-subtle);
+      border-radius: 8px; cursor: pointer; font-size: 1rem; color: var(--mid);
+      display: flex; align-items: center; justify-content: center; transition: background .2s;
+    }
+    .modal-close:hover { background: var(--border) }
+    .modal-body { flex: 1; overflow-y: auto; padding: 1.25rem }
+    .modal-footer {
+      padding: .75rem 1.25rem; border-top: 1px solid var(--border);
+      display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; flex-shrink: 0;
+    }
+
+    /* Modal content styles */
+    .score-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem }
+    .score-num { font-family: var(--font-title); font-size: 2.2rem; font-weight: 700; line-height: 1 }
+    .score-label { font-size: .78rem; font-weight: 600 }
+    .score-sub { font-size: .72rem; color: var(--mid); margin-top: 2px }
+    .kw-wrap { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 1rem }
+    .kw-tag {
+      font-size: .6rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .08em; color: var(--blue); background: rgba(0,113,197,.08);
+      border-radius: 4px; padding: 3px 8px;
+    }
+    .cost-badge {
+      display: inline-flex; align-items: center; gap: 5px; font-size: .7rem;
+      color: var(--mid); background: var(--bg-subtle); border: 1px solid var(--border);
+      border-radius: 100px; padding: 3px 10px; margin-bottom: .75rem;
+    }
+    .cost-badge strong { color: var(--text) }
+    .demo-banner {
+      display: flex; align-items: center; gap: 8px; padding: 10px 14px;
+      background: rgba(0,113,197,.06); border: 1px solid rgba(0,113,197,.18);
+      border-radius: 10px; margin-bottom: 1rem; font-size: .76rem; color: var(--blue);
+    }
+    .demo-banner strong { font-weight: 700 }
+    .pdf-frame {
+      width: 100%; height: 500px; border: 1px solid var(--border);
+      border-radius: 10px; margin-top: .75rem;
+    }
+    .refine-row { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border) }
+
+    /* AI disclaimer — info icon vertically centered with first line */
+    .ai-disclaimer {
+      display: flex; gap: 8px; align-items: center; padding: 10px 14px;
+      background: var(--bg-subtle); border: 1px solid var(--border);
+      border-radius: 10px; margin-top: 1rem; font-size: .7rem;
+      color: var(--light); line-height: 1.55;
+    }
+    .ai-disclaimer svg { flex-shrink: 0 }
+    .ai-disclaimer strong { color: var(--mid); font-weight: 600 }
+
+    /* ================================================================
+       ANIMATIONS
+       ================================================================ */
+    .fade-in { opacity: 0; transform: translateY(16px); animation: fadeUp .5s ease forwards }
+    @keyframes fadeUp { to { opacity: 1; transform: translateY(0) } }
+
+    /* ================================================================
+       RESPONSIVE
+       ================================================================ */
+    @media (max-width: 860px) {
+      .top-header { padding: .85rem 1.25rem }
+      .app-main { padding: 1.5rem 1.25rem 3rem }
+      .layout { grid-template-columns: 1fr; gap: .75rem }
+      .hero-subtitle { font-size: 1.3rem }
+      .hero { padding: 1rem 0 1.25rem; margin-bottom: 1rem }
+    }
+    @media (max-width: 480px) {
+      .app-main { padding: 1rem 1rem 2rem }
+      .hero-subtitle { font-size: 1.1rem }
+      .login-card { padding: 2rem 1.5rem; margin: 0 1rem }
+      .score-row { flex-direction: column; align-items: flex-start; gap: 4px }
+      .modal-footer { flex-direction: column }
+      .modal-footer button { width: 100%; text-align: center }
+      .two-col { grid-template-columns: 1fr }
+      .modal-box { width: 100%; max-height: 100vh; border-radius: 0 }
+      .pdf-frame { height: 300px }
+      .action-row { flex-direction: column }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ================================================================
+     LOGIN SCREEN
+     ================================================================ -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="brand-dot"></div>
+    <h1>aire</h1>
+    <p>AI-powered resume optimization</p>
+    <label class="field-label">Password</label>
+    <input type="password" id="pwd-input" placeholder="••••••••"
+           onkeydown="if(event.key==='Enter')checkPassword()"/>
+    <div class="login-error" id="login-error"></div>
+    <button class="btn-blue btn-blue--block" onclick="checkPassword()">Continue</button>
+    <div class="login-footer">
+      aire v1.0 — AI artifact by
+      <a href="https://saulossorio.com" target="_blank" class="footer-link">Saul Ossorio</a>
+    </div>
+  </div>
+</div>
+
+<!-- ================================================================
+     APP
+     ================================================================ -->
+<div id="app">
+
+  <!-- Top bar -->
+  <header class="top-header">
+    <div class="dot"></div>
+    <span class="top-header-name">aire</span>
+    <div class="top-header-right">v1.0</div>
+  </header>
+
+  <!-- Main content -->
+  <main class="app-main fade-in">
+
+    <!-- Hero -->
+    <div class="hero">
+      <h1 class="hero-subtitle">
+        <span class="hl">ai</span>-powered <span class="hl">re</span>sume optimization
+      </h1>
+      <p class="hero-desc">
+        aire analyzes the target role, rewrites your content to match the position,
+        adapts terminology to the job's language, and reorders your experience by relevance.
+      </p>
+    </div>
+
+    <!-- Instructions -->
+    <div style="max-width:720px;margin:0 auto">
+      <p class="eyebrow" style="margin-bottom:.4rem">Instructions</p>
+      <p style="font-size:.78rem;color:var(--mid);margin-bottom:1rem;line-height:1.6">
+        Upload your resume, paste the job description, choose your preferences, and click refine.
+      </p>
+    </div>
+
+    <div class="layout">
+
+        <!-- Panel 01: Resume (choose mode) -->
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-num">01</span>
+            <span class="panel-title">Your resume</span>
+            <button class="clear-btn" onclick="clearSection('resume')" title="Clear resume">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.66V20a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5.34"/><path d="M18 2l4 4"/><path d="M17.5 6.5L7 17"/></svg>
+              Clear
+            </button>
+          </div>
+          <div class="panel-body">
+            <div class="mode-toggle">
+              <button class="active" id="mode-upload" onclick="setResumeMode('upload')">Upload file</button>
+              <button id="mode-paste" onclick="setResumeMode('paste')">Paste text</button>
+            </div>
+            <div id="resume-upload-area">
+              <div class="upload-zone" onclick="document.getElementById('file-input').click()">
+                <p id="upload-label">Click to upload</p>
+                <span>PDF · TXT · MD · DOC · DOCX</span>
+              </div>
+              <input id="file-input" type="file" accept=".pdf,.txt,.md,.doc,.docx" style="display:none" aria-label="Upload resume file"/>
+            </div>
+            <div id="resume-paste-area" style="display:none">
+              <textarea id="resume-text" placeholder="Paste your resume text here…" rows="10" aria-label="Resume text"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <!-- Panel 02: Job description (text or URL) -->
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-num">02</span>
+            <span class="panel-title">Job description</span>
+            <button class="clear-btn" onclick="clearSection('job')" title="Clear job description">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.66V20a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5.34"/><path d="M18 2l4 4"/><path d="M17.5 6.5L7 17"/></svg>
+              Clear
+            </button>
+          </div>
+          <div class="panel-body">
+            <textarea id="job-desc" placeholder="Paste the full job posting…" rows="10" aria-label="Job description"></textarea>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-num">03</span>
+            <span class="panel-title">Options</span>
+            <button class="clear-btn" onclick="clearSection('options')" title="Reset options">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.66V20a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5.34"/><path d="M18 2l4 4"/><path d="M17.5 6.5L7 17"/></svg>
+              Clear
+            </button>
+          </div>
+          <div class="panel-body">
+            <div class="two-col">
+              <div>
+                <label class="field-label" for="tone">Tone</label>
+                <select id="tone">
+                  <option value="" selected disabled>Select tone</option>
+                  <option>Corporate &amp; formal</option>
+                  <option>Creative &amp; modern</option>
+                  <option>Startup-friendly</option>
+                </select>
+              </div>
+              <div>
+                <label class="field-label" for="lang">Language</label>
+                <select id="lang">
+                  <option value="" selected disabled>Select language</option>
+                  <option>English</option>
+                  <option>Português</option>
+                  <option>Español</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+        <button class="btn-blue btn-blue--block" id="refine-btn" onclick="handleRefine()">Refine my resume →</button>
+        <div class="action-row">
+          <button class="btn-outline" onclick="loadExample()">Try example</button>
+          <button class="btn-outline" style="display:none" id="view-last-btn" onclick="showOutputModal(lastResult,false)">View last result</button>
+        </div>
+        <div class="error-msg" id="error-msg"></div>
+        <div id="loading-area"></div>
+    </div>
+
+    <!-- Footer -->
+    <div class="app-footer" style="margin-top:1rem">
+      aire v1.0 — AI artifact by
+      <a href="https://saulossorio.com" target="_blank" class="footer-link">Saul Ossorio</a>
+    </div>
+  </main>
+</div>
+
+<!-- ================================================================
+     OUTPUT MODAL
+     ================================================================ -->
+<div class="modal-overlay" id="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+  <div class="modal-box">
+    <div class="modal-header">
+      <span class="panel-title" id="modal-title">Output</span>
+      <button class="modal-close" onclick="closeModal()" aria-label="Close modal">✕</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-footer" id="modal-footer"></div>
+  </div>
+</div>
+
+<!-- ================================================================
+     JAVASCRIPT
+     ================================================================ -->
+<script>
+/**
+ * aire — AI-powered resume optimization
+ * Configuration loaded from config.json (prompts, AI model, password).
+ * API calls proxied through /api/refine.php (holds the API key server-side).
+ */
+
+/* ── State ── */
+const API_ENDPOINT = "/api/refine.php";
+let CFG = null;                    // loaded from config.json
+let isPdf = false;                 // true if user uploaded a PDF
+let pdfB64 = "";                   // base64-encoded PDF data
+let lastResult = null;             // last API result (for "View last result")
+let lastPdfDoc = null;             // last jsPDF instance (for download)
+
+/* ── Load config.json on startup ── */
+async function loadConfig() {
+  try {
+    const res = await fetch("config.json?" + Date.now());
+    CFG = await res.json();
+    if (!CFG.password) checkPassword(); // auto-skip login if no password
+  } catch (e) {
+    console.error("Failed to load config.json:", e);
+  }
+}
+loadConfig();
+
+/* ================================================================
+   AUTH
+   ================================================================ */
+function checkPassword() {
+  if (!CFG?.password) {
+    document.getElementById("login-screen").classList.add("hidden");
+    document.getElementById("app").classList.add("visible");
+    return;
+  }
+  if (document.getElementById("pwd-input").value === CFG.password) {
+    document.getElementById("login-screen").classList.add("hidden");
+    document.getElementById("app").classList.add("visible");
+  } else {
+    document.getElementById("login-error").textContent = "Incorrect password.";
+    document.getElementById("pwd-input").value = "";
+  }
+}
+
+/* ================================================================
+   FILE UPLOAD HANDLER
+   ================================================================ */
+document.getElementById("file-input").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const label = document.getElementById("upload-label");
+  label.textContent = file.name + " · click to replace";
+  label.style.color = "var(--blue)";
+
+  if (file.name.endsWith(".pdf")) {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    let bin = "";
+    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    pdfB64 = btoa(bin);
+    isPdf = true;
+    document.getElementById("resume-text").value = "";
+    document.getElementById("resume-text").placeholder = "PDF loaded ✓";
+  } else {
+    isPdf = false;
+    pdfB64 = "";
+    document.getElementById("resume-text").value = await file.text();
+  }
+});
+
+/* ================================================================
+   MODAL CONTROLS
+   ================================================================ */
+document.getElementById("modal").addEventListener("click", (e) => {
+  if (e.target === e.currentTarget) closeModal();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") closeModal();
+});
+
+function openModal() {
+  document.getElementById("modal").classList.add("open");
+  document.body.style.overflow = "hidden";
+}
+function closeModal() {
+  document.getElementById("modal").classList.remove("open");
+  document.body.style.overflow = "";
+}
+
+/* ================================================================
+   COPY RESUME AS MARKDOWN
+   ================================================================ */
+function copyMarkdown(btnEl) {
+  if (!lastResult) return;
+  const r = lastResult;
+  let md = `# ${r.name}\n\n*${r.title}*\n\n`;
+  for (const line of (r.resume || "").split("\n")) {
+    const t = line.trim();
+    if (t === "---") continue;
+    if (t === "") { md += "\n"; continue; }
+    if (/^[-\s]*[A-ZÁÉÍÓÚÃÕÇ &\/]{4,}$/.test(t)) {
+      md += `\n## ${t.replace(/^[-\s]+/, "").trim()}\n\n`;
+      continue;
+    }
+    md += t + "\n";
+  }
+  navigator.clipboard.writeText(md.trim());
+  btnEl.textContent = "Copied ✓";
+  btnEl.classList.add("btn-success");
+  setTimeout(() => {
+    btnEl.textContent = "Copy as Markdown";
+    btnEl.classList.remove("btn-success");
+  }, 2000);
+}
+
+/* ================================================================
+   API CALL
+   ================================================================ */
+async function callAPI(system, userContent) {
+  const res = await fetch(API_ENDPOINT, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: CFG.ai.model,
+      max_tokens: CFG.ai.maxTokens,
+      system,
+      messages: [{ role: "user", content: userContent }]
+    })
+  });
+  return await res.json();
+}
+
+/** Estimate API cost from usage data */
+function estimateCost(u) {
+  if (!u) return null;
+  const cost = (u.input_tokens / 1e6) * 3 + (u.output_tokens / 1e6) * 15;
+  return { tokens: u.input_tokens + u.output_tokens, cost: cost.toFixed(4) };
+}
+
+/* ================================================================
+   REFINE HANDLER — validates, builds prompt from config, calls API
+   ================================================================ */
+async function handleRefine(feedbackText) {
+  const resumeText = document.getElementById("resume-text").value.trim();
+  const jobDesc = document.getElementById("job-desc").value.trim();
+  const tone = document.getElementById("tone").value || "";
+  const lang = document.getElementById("lang").value || "";
+  const errEl = document.getElementById("error-msg");
+
+  /* Clear previous validation state */
+  errEl.textContent = "";
+  document.querySelectorAll(".input-error").forEach(el => el.classList.remove("input-error"));
+  document.querySelectorAll(".input-error-msg").forEach(el => el.remove());
+
+  /* Validate inputs */
+  let hasError = false;
+  const resumeMode = document.getElementById("mode-upload").classList.contains("active") ? "upload" : "paste";
+  const MIN_RESUME_CHARS = 200;
+  const MIN_JOB_CHARS = 100;
+  const MIN_RESUME_WORDS = 40;
+
+  if (resumeMode === "upload" && !isPdf) {
+    document.querySelector(".upload-zone").style.borderColor = "#c0392b";
+    document.querySelector(".upload-zone").insertAdjacentHTML("afterend",
+      '<div class="input-error-msg">Please upload your resume file.</div>');
+    hasError = true;
+  } else if (resumeMode === "paste") {
+    const el = document.getElementById("resume-text");
+    if (!resumeText) {
+      el.classList.add("input-error");
+      el.insertAdjacentHTML("afterend",
+        '<div class="input-error-msg">Please paste your resume text.</div>');
+      hasError = true;
+    } else if (resumeText.length < MIN_RESUME_CHARS || resumeText.split(/\s+/).length < MIN_RESUME_WORDS) {
+      el.classList.add("input-error");
+      el.insertAdjacentHTML("afterend",
+        `<div class="input-error-msg">Your resume is too short (minimum ${MIN_RESUME_WORDS} words). Please paste your complete resume with work experience, skills, and education.</div>`);
+      hasError = true;
+    }
+  }
+
+  if (!jobDesc) {
+    const el = document.getElementById("job-desc");
+    el.classList.add("input-error");
+    el.insertAdjacentHTML("afterend",
+      '<div class="input-error-msg">Please paste the job description.</div>');
+    hasError = true;
+  } else if (jobDesc.length < MIN_JOB_CHARS) {
+    const el = document.getElementById("job-desc");
+    el.classList.add("input-error");
+    el.insertAdjacentHTML("afterend",
+      '<div class="input-error-msg">The job description is too short. Please paste the full job posting for accurate optimization.</div>');
+    hasError = true;
+  }
+  if (!tone) {
+    const el = document.getElementById("tone");
+    el.classList.add("input-error");
+    el.insertAdjacentHTML("afterend",
+      '<div class="input-error-msg">Please select a tone.</div>');
+    hasError = true;
+  }
+  if (!lang) {
+    const el = document.getElementById("lang");
+    el.classList.add("input-error");
+    el.insertAdjacentHTML("afterend",
+      '<div class="input-error-msg">Please select a language.</div>');
+    hasError = true;
+  }
+  if (hasError) return;
+
+  /* Show loading state */
+  const btn = document.getElementById("refine-btn");
+  btn.textContent = "Refining…";
+  btn.disabled = true;
+  document.getElementById("loading-area").innerHTML =
+    `<div class="loading-row">
+      <svg class="spinner" width="18" height="18" viewBox="0 0 18 18" fill="none">
+        <circle cx="9" cy="9" r="7" stroke="var(--border)" stroke-width="2.5"/>
+        <path d="M9 2a7 7 0 0 1 7 7" stroke="var(--blue)" stroke-width="2.5" stroke-linecap="round"/>
+      </svg>
+      <p>Analyzing and rewriting…</p>
+    </div>`;
+
+  /* Build system prompt from config.json */
+  const isFb = typeof feedbackText === "string" && feedbackText.trim().length > 0;
+  const P = CFG.prompts;
+  const langRule = P.languageRule.replace(/\{\{LANG\}\}/g, lang);
+  const system = (isFb
+    ? P.systemFeedback.replace("{{FEEDBACK}}", feedbackText)
+    : P.systemBase
+  ) + `\nTone: ${tone}.\n\n${P.toneGuide}\n\n${langRule}\n\n${P.strategy}\n\n${P.formatRules}\n\n${P.responseFormat}`;
+
+  /* Build user content */
+  const base = isPdf
+    ? [{ type: "document", source: { type: "base64", media_type: "application/pdf", data: pdfB64 }},
+       { type: "text", text: `Job description:\n${jobDesc}` }]
+    : [{ type: "text", text: `Resume:\n${resumeText}\n\nJob description:\n${jobDesc}` }];
+  const userContent = isFb
+    ? [...base, { type: "text", text: `\nPrevious version:\n${lastResult.resume}` }]
+    : base;
+
+  /* Call API and handle response */
+  try {
+    const data = await callAPI(system, userContent);
+    if (data.error) {
+      errEl.textContent = `API error: ${data.error.message || JSON.stringify(data.error)}`;
+      resetBtn(); return;
+    }
+    const raw = data.content?.map(b => b.text || "").join("").trim()
+      .replace(/```json|```/g, "").trim();
+    if (data.stop_reason === "max_tokens") {
+      errEl.textContent = "Response was cut off. Try a shorter resume or fewer entries.";
+      console.error("Truncated:", raw);
+      resetBtn(); return;
+    }
+    const result = JSON.parse(raw);
+    result._cost = estimateCost(data.usage);
+    if (result.score === 0) {
+      errEl.textContent = "Your resume doesn't contain enough detail to generate an optimized version. Please provide a complete resume with work experience, education, and skills.";
+      resetBtn(); return;
+    }
+    lastResult = result;
+    document.getElementById("view-last-btn").style.display = "";
+    showOutputModal(result, false);
+  } catch (err) {
+    console.error(err);
+    errEl.textContent = err instanceof SyntaxError
+      ? "Failed to parse AI response. It may have been truncated. Try again."
+      : "Something went wrong. Check console for details.";
+  }
+  resetBtn();
+
+  function resetBtn() {
+    document.getElementById("loading-area").innerHTML = "";
+    btn.textContent = "Refine my resume →";
+    btn.disabled = false;
+  }
+}
+
+/* ================================================================
+   PDF GENERATOR — matches the CV model layout
+   Clean, no colors. Bold name, italic title, bold section headers,
+   bold job titles, italic company/dates in gray, normal bullets.
+   ================================================================ */
+function buildPdf() {
+  const r = lastResult;
+  if (!r) return null;
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: "mm", format: "letter" });
+  const ml = 18, mr = 18, mt = 20, pw = 215.9 - ml - mr;
+  const BLACK = [26, 26, 26], GRAY = [85, 85, 85];
+  let y = mt;
+
+  const np = () => { doc.addPage(); y = mt; };
+  const ck = (h) => { if (y + h > 268) np(); };
+
+  /* Name */
+  doc.setFont("helvetica", "bold"); doc.setFontSize(16); doc.setTextColor(...BLACK);
+  doc.text(r.name || "Candidate", ml, y);
+  y += 6;
+
+  /* Title */
+  doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(...GRAY);
+  const tw = doc.splitTextToSize(r.title || "", pw);
+  doc.text(tw, ml, y);
+  y += tw.length * 4 + 4;
+
+  /* Body lines */
+  const lines = (r.resume || "").split("\n");
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i].trim();
+    if (line === "---") { i++; continue; }
+    if (line === "") { y += 2; i++; continue; }
+
+    /* Section header */
+    if (/^[-\s]*[A-ZÁÉÍÓÚÃÕÇ &\/]{4,}$/.test(line)) {
+      const clean = line.replace(/^[-\s]+/, "").trim();
+      ck(14);
+      if (y > mt + 8) y += 6;
+      doc.setFont("helvetica", "bold"); doc.setFontSize(10.5); doc.setTextColor(...BLACK);
+      doc.text(clean, ml, y);
+      y += 6; i++; continue;
+    }
+
+    /* Contact labeled line */
+    const cm = line.match(/^(Email|LinkedIn|Portfolio|Location|Phone):\s*(.*)/i);
+    if (cm) {
+      doc.setFont("helvetica", "bold"); doc.setFontSize(9); doc.setTextColor(...BLACK);
+      const lbl = cm[1] + ": ";
+      doc.text(lbl, ml, y);
+      doc.setFont("helvetica", "normal");
+      doc.text(cm[2], ml + doc.getTextWidth(lbl), y);
+      y += 4.8; i++; continue;
+    }
+
+    /* Bullet */
+    if (line.startsWith("\u2022") || line.startsWith("- ")) {
+      doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(...BLACK);
+      const txt = line.replace(/^[\u2022\-]\s*/, "");
+      const w = doc.splitTextToSize(txt, pw - 6);
+      ck(w.length * 4.2);
+      doc.text("\u2022", ml + 1, y);
+      doc.text(w, ml + 5, y);
+      y += w.length * 4.2 + 1; i++; continue;
+    }
+
+    /* Date line (lighter: italic, gray, smaller) */
+    if (/\b\d{4}\b/.test(line) && /\b(to|a|–|-)\b/i.test(line) && line.length < 60) {
+      doc.setFont("helvetica", "italic"); doc.setFontSize(8.5); doc.setTextColor(...GRAY);
+      doc.text(line, ml, y);
+      y += 4.2; i++; continue;
+    }
+
+    /* Thesis / project info */
+    if (/^(Thesis|Tesis|Final Project|Proyecto Final|Coursework|Dissertation|TCC)[\s:]/i.test(line)) {
+      doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(...BLACK);
+      const w = doc.splitTextToSize(line, pw);
+      ck(w.length * 4.2);
+      doc.text(w, ml, y);
+      y += w.length * 4.2 + 1; i++; continue;
+    }
+
+    /* Company with parentheses */
+    if (/\(.+\)/.test(line) && line.length < 60 && !/\d{4}/.test(line)) {
+      doc.setFont("helvetica", "italic"); doc.setFontSize(9); doc.setTextColor(...BLACK);
+      doc.text(line, ml, y);
+      y += 4.5; i++; continue;
+    }
+
+    /* University */
+    if (/universid|university|instituto/i.test(line)) {
+      doc.setFont("helvetica", "italic"); doc.setFontSize(9); doc.setTextColor(...BLACK);
+      doc.text(line, ml, y);
+      y += 4.5; i++; continue;
+    }
+
+    /* Job/degree title (bold) */
+    if (/^[A-ZÁÉÍÓÚÃÕÇ]/.test(line) && line.length < 70
+        && !line.endsWith(".") && !line.includes(",") && !/\|/.test(line)) {
+      ck(8);
+      if (y > mt + 8) y += 2;
+      doc.setFont("helvetica", "bold"); doc.setFontSize(9.5); doc.setTextColor(...BLACK);
+      doc.text(line, ml, y);
+      y += 4.8; i++; continue;
+    }
+
+    /* Regular text */
+    doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(...BLACK);
+    const w = doc.splitTextToSize(line, pw);
+    ck(w.length * 4.2);
+    doc.text(w, ml, y);
+    y += w.length * 4.2 + 1;
+    i++;
+  }
+  return doc;
+}
+
+/* ================================================================
+   OUTPUT MODAL — shows score, keywords, PDF preview, disclaimer
+   ================================================================ */
+function showOutputModal(r, isDemo) {
+  const scoreColor = r.score >= 75 ? "#1a7a4a" : r.score >= 50 ? "#b07d1a" : "#c0392b";
+  const scoreLabel = r.score >= 75 ? "Strong ATS match" : r.score >= 50 ? "Good match" : "Weak match";
+  const kw = (r.keywords || []).map(k => `<span class="kw-tag">${k}</span>`).join("");
+  const costHtml = r._cost
+    ? `<div class="cost-badge">~${r._cost.tokens.toLocaleString()} tokens · <strong>~$${r._cost.cost}</strong></div>`
+    : "";
+  const demoBanner = isDemo
+    ? `<div class="demo-banner"><strong>Example</strong> Pre-built demo, no API tokens used.</div>` : "";
+
+  /* Build PDF preview */
+  lastPdfDoc = buildPdf();
+  const blobUrl = lastPdfDoc ? lastPdfDoc.output("bloburl") : "";
+
+  document.getElementById("modal-title").textContent = isDemo ? "Example Output" : "Optimized Resume";
+  document.getElementById("modal-body").innerHTML = `
+    ${demoBanner}
+    <div class="score-row">
+      <div>
+        <div class="score-num" style="color:${scoreColor}">${r.score}%</div>
+        <div class="score-label" style="color:${scoreColor}">${scoreLabel}</div>
+      </div>
+      <div style="flex:1">
+        <div class="score-sub">ATS compatibility after optimization</div>
+        ${costHtml}
+      </div>
+    </div>
+    <p class="eyebrow">ATS Keywords</p>
+    <div class="kw-wrap">${kw}</div>
+    <p class="eyebrow">Resume Preview</p>
+    <iframe class="pdf-frame" src="${blobUrl}" title="Resume PDF preview"></iframe>
+    <div class="refine-row">
+      <p class="eyebrow" style="margin-bottom:8px">Not satisfied?</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn-outline" onclick="closeModal();handleRefine()">↺ Regenerate</button>
+        <button class="btn-outline" onclick="toggleFeedback()"
+                style="color:var(--blue);border-color:var(--blue)">✎ Refine further</button>
+      </div>
+      <div id="feedback-area" style="display:none;margin-top:10px">
+        <textarea id="feedback-input" rows="3"
+                  placeholder="e.g. 'More concise', 'Focus on leadership'"></textarea>
+        <button class="btn-blue" onclick="closeModal();submitFeedback()"
+                style="margin-top:8px">Apply feedback →</button>
+      </div>
+    </div>
+    <div class="ai-disclaimer">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/>
+        <line x1="12" y1="8" x2="12.01" y2="8"/>
+      </svg>
+      <span>Generated by <strong>${CFG?.ai?.provider || "AI"}</strong>
+      (${CFG?.ai?.modelDisplay || "unknown model"}).
+      AI-generated content may contain inaccuracies.
+      Always review and verify before submitting.</span>
+    </div>`;
+
+  document.getElementById("modal-footer").innerHTML = `
+    <button class="btn-outline" onclick="copyMarkdown(this)">Copy as Markdown</button>
+    <button class="btn-blue" onclick="if(lastPdfDoc)lastPdfDoc.save('optimized_resume.pdf')">
+      Download PDF
+    </button>`;
+
+  openModal();
+}
+
+/** Toggle the feedback textarea visibility in the output modal */
+function toggleFeedback() {
+  const el = document.getElementById("feedback-area");
+  el.style.display = el.style.display === "block" ? "none" : "block";
+}
+
+/** Submit user feedback for iterative refinement (calls handleRefine with feedback text) */
+function submitFeedback() {
+  const fb = document.getElementById("feedback-input")?.value?.trim();
+  if (fb) handleRefine(fb);
+}
+
+/* ================================================================
+   EXAMPLE DATA (generic, no personal data, no API cost)
+   ================================================================ */
+const EXAMPLE_RESUME = `Alex Johnson
+Full-Stack Developer with 4 years of experience building scalable web applications using React, Node.js, and PostgreSQL. Skilled in agile environments, CI/CD pipelines, and cloud infrastructure (AWS). Bachelor's in Computer Science from State University.
+
+EXPERIENCE
+Full-Stack Developer
+TechFlow Inc. (Full-time)
+June 2021 to Present
+• Built and maintained customer-facing SaaS platform serving 15,000+ users using React and Node.js.
+• Reduced API response times by 40% through database query optimization and Redis caching.
+• Implemented CI/CD pipeline with GitHub Actions, cutting deployment time from 2 hours to 15 minutes.
+
+Junior Developer
+WebCraft Agency (Full-time)
+January 2020 to May 2021
+• Developed responsive websites for 20+ clients using HTML, CSS, JavaScript, and WordPress.
+• Collaborated with designers to translate Figma mockups into pixel-perfect interfaces.
+
+EDUCATION
+Bachelor of Science in Computer Science
+State University
+September 2016 to June 2020
+
+SKILLS
+JavaScript, TypeScript, React, Node.js, PostgreSQL, MongoDB, AWS, Docker, Git, CI/CD, REST APIs, Agile`;
+
+const EXAMPLE_JOB = `Senior Frontend Engineer — CloudScale Inc.
+
+We're looking for a Senior Frontend Engineer to lead the development of our customer dashboard. You'll work closely with product and design teams to build performant, accessible interfaces.
+
+Requirements:
+• 4+ years of experience with React or similar frameworks
+• Strong TypeScript skills
+• Experience with state management (Redux, Zustand)
+• Familiarity with testing frameworks (Jest, Cypress)
+• Experience with CI/CD and cloud platforms (AWS preferred)
+• Excellent communication skills for cross-functional collaboration`;
+
+const EXAMPLE_RESULT = {
+  score: 78,
+  keywords: ["React", "TypeScript", "Frontend", "CI/CD", "AWS", "State Management",
+             "Testing", "Accessible Interfaces", "Cross-Functional", "Agile",
+             "Performance Optimization"],
+  name: "Alex Johnson",
+  title: "Senior Frontend Engineer | Full-Stack Developer | React & TypeScript",
+  resume: `---\nCONTACT\nEmail: alex.johnson@email.com\nLinkedIn: linkedin.com/in/alexjohnson\nPortfolio: alexjohnson.dev\n---\nSUMMARY\nSenior Frontend Engineer with 4+ years of experience building scalable, performant web applications using React, TypeScript, and modern frontend tooling. Proven track record in cross-functional collaboration with product and design teams, CI/CD pipeline implementation, and cloud infrastructure on AWS. Passionate about accessible interfaces, state management patterns, and delivering measurable performance improvements.\n---\nEXPERIENCE\nSenior Full-Stack Developer\nTechFlow Inc. (Full-time)\nJune 2021 to Present\n• Led frontend architecture of customer-facing SaaS dashboard serving 15,000+ active users, built with React and TypeScript.\n• Implemented state management using Redux and Zustand, improving data flow consistency and reducing UI bugs by 35%.\n• Reduced API response times by 40% through database query optimization and Redis caching layer implementation.\n• Built and maintained CI/CD pipeline with GitHub Actions and AWS deployment, cutting release cycles from 2 hours to 15 minutes.\n• Wrote comprehensive test suites using Jest and Cypress, achieving 85% code coverage across frontend components.\n• Collaborated with product managers and designers in cross-functional sprints to translate Figma mockups into accessible, pixel-perfect interfaces.\n\nJunior Frontend Developer\nWebCraft Agency (Full-time)\nJanuary 2020 to May 2021\n• Developed responsive, accessible websites for 20+ clients using HTML, CSS, JavaScript, and React components.\n• Translated design mockups from Figma into production-ready interfaces with attention to cross-browser compatibility.\n• Participated in agile ceremonies including daily standups, sprint planning, and retrospectives.\n---\nEDUCATION\nBachelor of Science in Computer Science\nState University\nSeptember 2016 to June 2020\nCoursework: Data Structures, Algorithms, Web Development, Software Engineering, Database Systems.\n---\nTECHNICAL SKILLS\nReact, TypeScript, JavaScript, Redux, Zustand, Node.js, PostgreSQL, MongoDB, AWS (EC2, S3, Lambda), Docker, Git, GitHub Actions, CI/CD, REST APIs, Jest, Cypress, HTML, CSS, Tailwind CSS, Figma, Responsive Design, Accessibility (WCAG)\n---\nSOFT SKILLS\nCross-Functional Collaboration, Agile Methodologies, Technical Communication, Problem Solving, Attention to Detail, Continuous Learning, Team Leadership\n---\nLANGUAGES\nEnglish (Native) | Spanish (Intermediate)`
+};
+
+/** Load example: populates inputs, shows output modal (no API call) */
+function loadExample() {
+  setResumeMode("paste");
+  document.getElementById("resume-text").value = EXAMPLE_RESUME;
+  document.getElementById("job-desc").value = EXAMPLE_JOB;
+  document.getElementById("tone").value = "Corporate & formal";
+  document.getElementById("lang").value = "English";
+  lastResult = { ...EXAMPLE_RESULT };
+  showOutputModal(lastResult, true);
+}
+
+/* ================================================================
+   UTILITY: clear individual sections
+   ================================================================ */
+function clearSection(section) {
+  if (section === "resume") {
+    document.getElementById("resume-text").value = "";
+    document.getElementById("resume-text").placeholder = "Paste your resume text here…";
+    document.getElementById("resume-text").classList.remove("input-error");
+    document.getElementById("upload-label").textContent = "Click to upload";
+    document.getElementById("upload-label").style.color = "var(--mid)";
+    document.querySelector(".upload-zone").style.borderColor = "";
+    document.getElementById("file-input").value = "";
+    isPdf = false;
+    pdfB64 = "";
+  } else if (section === "job") {
+    document.getElementById("job-desc").value = "";
+    document.getElementById("job-desc").classList.remove("input-error");
+  } else if (section === "options") {
+    /* Reset dropdowns to default "Select..." placeholder */
+    document.getElementById("tone").selectedIndex = 0;
+    document.getElementById("tone").classList.remove("input-error");
+    document.getElementById("lang").selectedIndex = 0;
+    document.getElementById("lang").classList.remove("input-error");
+
+  }
+  document.querySelectorAll(".input-error-msg").forEach(el => el.remove());
+}
+
+/* ================================================================
+   RESUME MODE TOGGLE — switch between upload and paste
+   ================================================================ */
+function setResumeMode(mode) {
+  const btnUpload = document.getElementById("mode-upload");
+  const btnPaste = document.getElementById("mode-paste");
+  const areaUpload = document.getElementById("resume-upload-area");
+  const areaPaste = document.getElementById("resume-paste-area");
+
+  if (mode === "upload") {
+    btnUpload.classList.add("active");
+    btnPaste.classList.remove("active");
+    areaUpload.style.display = "";
+    areaPaste.style.display = "none";
+  } else {
+    btnPaste.classList.add("active");
+    btnUpload.classList.remove("active");
+    areaUpload.style.display = "none";
+    areaPaste.style.display = "";
+  }
+}
+
+
+</script>
+</body>
+</html>
